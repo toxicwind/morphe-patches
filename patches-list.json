@@ -3659,6 +3659,39 @@
       "options": []
     },
     {
+      "name": "Fix activity status mapping",
+      "description": "Map the waiting-on-user finish status to PENDING instead of SUCCESS, and parse old-format entry status instead of hardcoding SUCCESS.",
+      "default": true,
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.facebook.aura",
+          "name": "Aura",
+          "description": null,
+          "apkFileType": "APK_REQUIRED",
+          "appIconColor": null,
+          "signatures": null,
+          "targets": [
+            {
+              "version": "7.0.0.25",
+              "versionCodes": null,
+              "isExperimental": true,
+              "minSdk": 29,
+              "description": null
+            },
+            {
+              "version": "6.0.0.48.164",
+              "versionCodes": null,
+              "isExperimental": true,
+              "minSdk": 29,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    },
+    {
       "name": "Force original audio",
       "description": "Adds an option to always use the original audio track.",
       "default": true,
