@@ -145,6 +145,52 @@ survive updates unless the method is substantially rewritten.
 - [x] Bundle built via Gradle: patches-1.43.0.mpp
 - [x] Patch applied: patched-unsigned.apk (31,737,709 bytes, exit=0); both fixes verified in disassembled patched dex
 - [x] Signed (Android Debug): patched-signed.apk (sha256 ce3ef62f745a9e561daf61e3de39efdc1bb7def32ca94ee9fe7db42287dbc216)
-- [x] Installed on Pixel 9 Pro XL (stock uninstalled for signature change; stock APK preserved for rollback)
-- [x] Verified on-device: app launches to AuraMainActivity, process alive, no AndroidRuntime crashes
+- [x] Installed on Pixel 9 Pro XL 2026-09-17 ~14:00 (stock uninstalled for signature change; stock APK preserved for rollback)
+- [x] Verified on-device 2026-09-17 ~14:20: patched-signed-v2.apk installed via
+  safe-install.sh (`adb install -r`, no wipe). Device-pulled base.apk dex confirms
+  the fix (0x75 goto->0x38). AuraMainActivity launched: process alive 60s+,
+  session-init/gateway log lines present, **0 VerifyError, 0 FATAL EXCEPTION**.
+  The class-verification path that crashed twice now passes.
 - [ ] Badge behavior end-to-end (needs a real waiting_for_user turn from the server)
+
+## Failure history (both verifier crashes, root-caused and fixed 2026-09-17)
+
+1. **14:03:14** -- `VerifyError: [0x3A] target dex pc 0x9 is not at instruction
+   start`. Root cause: Fix 2 used plain `addInstructions()` with embedded smali
+   labels; inserted branch targets were never re-resolved against the
+   post-insertion method (if-eqz->0x9 mid-instruction). Fixed ~14:15 with
+   `addInstructionsWithLabels()` + `ExternalLabel("done", join)`.
+2. **14:14:36** -- `VerifyError: [0x6B] register v10 has type Undefined but
+   expected Reference: ActivityStatus`. Root cause: Fix 2 did
+   `removeInstructions(sgetIndex, 1)`; dexlib2's removeInstruction MERGES the
+   removed instruction's labels into the FOLLOWING instruction
+   (MethodLocation.mergeInto). The `:goto_38` label (target of the note==null
+   path) moved onto the join instruction, so that path skipped the status
+   resolution and v10 stayed Undefined at the constructor call.
+   Fixed ~14:18: Fix 2 now uses `replaceInstruction(sgetIndex, smali)` which
+   swaps the instruction inside the SAME MethodLocation, preserving all labels;
+   the remainder is inserted after it with addInstructionsWithLabels() and an
+   internal `:use_sget` null-path label. All branch targets validated (21
+   methods, 0 bad targets) and every path to the 0x6B constructor assigns v10.
+3. **Stale-sign incident ~14:18** -- the sign step silently failed
+   (build-tools/34.0.0 does not exist; only 36.0.0/37.0.0; and the 37.0.0
+   apksigner rejects `--ks-pass:android`, needs `--ks-pass pass:android`), the
+   error was swallowed by `| tail -1`, and safe-install.sh installed the STALE
+   14:14 patched-signed.apk (same debug cert, so the cert gate passed).
+   Lesson: ALWAYS verify the signed artifact (timestamp + dex content) before
+   installing. Re-signed correctly ~14:19 as patched-signed-v2.apk, dex
+   re-verified, installed clean.
+
+## Standing rule: app data is NEVER wiped (Chris, 2026-09-17)
+- The Aura install pipeline must NEVER remove the logged-in state: no
+  `adb uninstall com.facebook.aura`, no `pm clear`, no data-clearing install
+  variant -- ever. Only `adb install -r` (data-preserving) is permitted.
+- The 2026-09-17 ~14:00 run violated this (uninstalled stock before installing
+  the debug-signed patched build); dumpsys shows firstInstallTime ==
+  lastUpdateTime == 2026-09-17 14:00:59 with the Android Debug signature, so the
+  login session was wiped. Chris must log back in. Must not recur.
+- Non-rooted Pixel + signature change (Meta -> Android Debug) means
+  `adb install -r` over stock fails with INSTALL_FAILED_UPDATE_INCOMPATIBLE:
+  there is no data-preserving in-place upgrade path. Install patched builds as
+  a PARALLEL package (distinct applicationId) or not at all without Chris's
+  explicit order.
