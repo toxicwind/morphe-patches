@@ -8,6 +8,7 @@
 package app.morphe.patches.aura.misc.fixactivitystatusmapping
 
 import app.morphe.patcher.Fingerprint
+import app.morphe.patcher.OpcodeFilter
 import app.morphe.patcher.OpcodesFilter
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
@@ -26,12 +27,16 @@ import com.android.tools.smali.dexlib2.Opcode
  * the method body — that absence is the bug).
  */
 internal object ParseActivityStatusFingerprint : Fingerprint(
-    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    accessFlags = listOf(AccessFlags.PRIVATE, AccessFlags.FINAL),
     returnType = "L", // ActivityStatus enum object
     parameters = listOf("Ljava/lang/String;"),
+    // NOTE: opcodesToFilters requires every filter after the first to match the
+    // *immediately* following instruction (MatchAfterImmediately), so the
+    // move-result between invoke-virtual and if-eqz must be listed explicitly.
     filters = OpcodesFilter.opcodesToFilters(
         Opcode.CONST_STRING,
         Opcode.INVOKE_VIRTUAL, // String.equals
+        Opcode.MOVE_RESULT,
         Opcode.IF_EQZ,
         Opcode.SGET_OBJECT, // ActivityStatus.PENDING / ERROR enum constants
         Opcode.RETURN_OBJECT,
@@ -50,12 +55,16 @@ internal object ParseActivityStatusFingerprint : Fingerprint(
  * used just below the hardcoded assignment.
  */
 internal object ParseActivityEntryHardcodedSuccessFingerprint : Fingerprint(
-    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    accessFlags = listOf(AccessFlags.PRIVATE, AccessFlags.FINAL),
     returnType = "L", // ActivityAction object
     parameters = listOf("Lcom/facebook/aura/status/repo/ActivityEntry;"),
-    filters = OpcodesFilter.opcodesToFilters(
-        Opcode.SGET_OBJECT, // ActivityStatus.SUCCESS
-        Opcode.CONST_STRING, // "changed_files" just below
+    // NOTE: 7.0.0.25.163 separates the SUCCESS sget from the "changed_files"
+    // const-string by an iget-object, so these must NOT require adjacency
+    // (opcodesToFilters would demand MatchAfterImmediately). Explicit
+    // OpcodeFilters default to MatchAfterAnywhere.
+    filters = listOf(
+        OpcodeFilter(Opcode.SGET_OBJECT), // ActivityStatus.SUCCESS
+        OpcodeFilter(Opcode.CONST_STRING), // "changed_files" below
     ),
     strings = listOf("changed_files"),
 )

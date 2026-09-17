@@ -48,16 +48,39 @@ PENDING instead of falling through to SUCCESS.
 - v0: scratch for hashCode result, then for the enum object
 - v1: scratch for the constant comparison
 
-### Fix 2: Parse old-format entry status
-Replace the hardcoded `sget-object ...->SUCCESS` in parseActivityEntry with:
+### Fix 2: Parse old-format entry status (INLINED)
+Replace the hardcoded `sget-object ...->SUCCESS` in parseActivityEntry with an
+inlined status mapping:
 ```smali
-    iget-object v2, v1, Lcom/facebook/aura/status/repo/ActivityEntry;->status:Ljava/lang/String;
-    if-nez v2, :status_not_null
-    const-string v2, ""
-    :status_not_null
-    invoke-direct {p0, v2}, L<ActivityDataSource>;->parseActivityStatus(Ljava/lang/String;)L<ActivityAction$ActivityStatus>;
-    move-result-object vX  # X = original target register
+    iget-object v10, v2, Lcom/facebook/aura/status/repo/ActivityEntry;->status:Ljava/lang/String;
+    if-nez v10, :use_success
+    const-string v2, "pending"
+    invoke-virtual { v10, v2 }, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+    move-result v2
+    if-eqz v2, :check_error
+    sget-object v10, Lcom/facebook/aura/status/repo/ActivityAction$ActivityStatus;->PENDING:...;
+    goto :done
+    :check_error
+    const-string v2, "error"
+    invoke-virtual { v10, v2 }, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+    move-result v2
+    if-eqz v2, :use_success
+    sget-object v10, Lcom/facebook/aura/status/repo/ActivityAction$ActivityStatus;->ERROR:...;
+    goto :done
+    :use_success
+    sget-object v10, Lcom/facebook/aura/status/repo/ActivityAction$ActivityStatus;->SUCCESS:...;
+    :done
 ```
+
+#### Why inlined (not a method call)
+The `parseActivityStatus` method is private instance method requiring `this`.
+In Aura 7.0.0.25.163, `this` lives in v21. The inline smali compiler rejects
+registers above v15, the 35c instruction format is limited to v0-v15, and the
+3rc (range) format requires consecutive registers. Inlining the
+pending->PENDING, error->ERROR, else->SUCCESS logic avoids `this` entirely.
+v2 (the ActivityEntry) is dead after the sget point (verified via register
+liveness analysis), so it serves as the temp. v10 (the sget target) is dead
+by definition.
 
 ### Why hashCode matching
 The status literal is matched by its Java hashCode (719392563) rather than by
@@ -84,13 +107,14 @@ survive updates unless the method is substantially rewritten.
 - `patches/aura/misc/fixactivitystatusmapping/FixActivityStatusMappingPatch.kt`
 - `patches/aura/shared/Constants.kt` (COMPATIBILITY_AURA)
 
-## Status
+## Status (Aura 7.0.0.25.163, 2026-09-17)
 - [x] Patch source written (morphe format, both bugs)
 - [x] Fingerprints defined (parseActivityStatus + hardcoded SUCCESS)
 - [x] HashCodes verified against decompiled source
-- [x] Files staged on awrawr-pc under morphe-patches tree
-- [ ] Patcher CLI built (gradle, long)
-- [ ] Patches bundle built (gradle, long)
-- [ ] APK obtained from device
-- [ ] Patch applied and tested
-- [ ] Installed on Pixel 9 Pro XL
+- [x] Physical APK pulled: base-base.apk (29,673,430 bytes, sha256 1b307eed...)
+- [x] Fingerprint fixed for 7.0.0.25.163 (SGET_OBJECT/CONST_STRING non-adjacent)
+- [x] Fix 2 inlined (v21 register limit bypassed)
+- [x] Bundle built: patches-1.43.0.mpp (via kotlinc direct, Gradle blocked on plugin auth)
+- [x] Patch applied: aura-7.0.0.25.163-patched-unsigned.apk (27,131,634 bytes, exit=0)
+- [x] Verified: PENDING/ERROR branches present, hardcoded SUCCESS replaced
+- [ ] Installed on Pixel 9 Pro XL (needs Chris to reconnect phone)
