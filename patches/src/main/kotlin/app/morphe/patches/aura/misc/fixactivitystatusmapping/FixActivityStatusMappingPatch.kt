@@ -19,9 +19,12 @@ import app.morphe.patches.aura.shared.Constants.COMPATIBILITY_AURA
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction22c
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction3rc
+import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
+import com.android.tools.smali.dexlib2.iface.instruction.TwoRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.reference.FieldReference
+import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 
 /**
  * Fixes the activity-status mapping bugs in the Aura app.
@@ -51,6 +54,7 @@ import com.android.tools.smali.dexlib2.iface.reference.FieldReference
  * the stock APK. Both injected branches are purely additive — removing the
  * patch restores the original control flow byte-for-byte.
  */
+// "waiting_for_user".hashCode() — verified against 7.0.0.25.163 decompile.
 private const val WFU_STATUS_HASHCODE = 719392563
 
 @Suppress("unused")
@@ -68,7 +72,8 @@ val fixActivityStatusMappingPatch = bytecodePatch(
         val entryMethod = ParseActivityEntryHardcodedSuccessFingerprint.method
 
         // Fix 1: WFU hashCode branch in parseActivityStatus.
-        // Register map (verified against apktool smali of 6.0.0.48.164):
+        // Register map (verified against apktool smali of 7.0.0.25.163,
+        // .locals 1):
         //   v0 = the one local, dead at method entry.
         //   v1 = p0 = `this`, dead: the method immediately overwrites it with
         //        `move-result p0` after the hashCode call and never reads `this`.
@@ -104,18 +109,29 @@ val fixActivityStatusMappingPatch = bytecodePatch(
             )
         }
 
-        // Fix 2: Replace hardcoded SUCCESS in parseActivityEntry old-format path
-        // with an inlined status mapping (pending->PENDING, error->ERROR,
-        // else->SUCCESS).
+        // Fix 2: Replace the hardcoded SUCCESS sget in parseActivityEntry's
+        // old-format path with a call to parseActivityStatus(entry.status).
         //
-        // NOTE: Inlining (instead of calling parseActivityStatus) avoids the
-        // v15 register limit. The parseActivityStatus method needs `this` in
-        // v21, which neither the inline smali compiler nor the 35c instruction
-        // format can encode. v2 (the ActivityEntry) is dead after the sget
-        // point (verified via register liveness), so it doubles as the temp.
-        // v10 (the sget target) is dead by definition.
+        // Register map (verified against apktool smali of 7.0.0.25.163):
+        //   v2 = the ActivityEntry (p1), copied low at method entry. LIVE
+        //        before AND after the sget point (the next use is
+        //        `iget-object v12, v2, ->hash`), so it is only READ here,
+        //        never written. A previous revision used v2 as the equals()
+        //        scratch register; that corrupted the entry and would fail
+        //        bytecode verification when the class loads.
+        //   vN = the sget target register, dead at the sget point by
+        //        definition; carries the status String, then the mapped enum.
+        //   `this` = derived from the method's own invoke-direct (v3 here),
+        //        never hardcoded: the 35c invoke-direct cannot encode the p0
+        //        slot (v21), but the method already copied it low.
+        //
+        // No scratch registers are needed and no class paths are hardcoded:
+        // the entry type comes from the method's parameter list, the callee
+        // from the resolved parseActivityStatus fingerprint, and the
+        // null-guard SUCCESS enum from the sget being replaced.
         ParseActivityEntryHardcodedSuccessFingerprint.method.apply {
-            val sgetIndex = implementation!!.instructions.indexOfFirst {
+            val methodImpl = implementation!!
+            val sgetIndex = methodImpl.instructions.indexOfFirst {
                 it.opcode == Opcode.SGET_OBJECT &&
                     (it as ReferenceInstruction).reference.let { ref ->
                         ref is FieldReference && ref.name == "SUCCESS"
@@ -123,28 +139,38 @@ val fixActivityStatusMappingPatch = bytecodePatch(
             }
             val sgetInsn = getInstruction<ReferenceInstruction>(sgetIndex)
             val targetRegister = (sgetInsn as OneRegisterInstruction).registerA
-            val entryRegister = 2
-            val tempRegister = 2
-            val statusClass = "Lcom/facebook/aura/status/repo/ActivityAction\$ActivityStatus;"
+            val enumRef = sgetInsn.reference as FieldReference
+
+            // Entry register: the low copy of the ActivityEntry parameter
+            // (move-object/from16 vX, p1 at method entry).
+            val entryParamReg = methodImpl.registerCount - 1
+            val entryRegister = (methodImpl.instructions.first {
+                (it.opcode == Opcode.MOVE_OBJECT_FROM16 ||
+                    it.opcode == Opcode.MOVE_OBJECT_16 ||
+                    it.opcode == Opcode.MOVE_OBJECT) &&
+                    (it as TwoRegisterInstruction).registerB == entryParamReg
+            } as TwoRegisterInstruction).registerA
+            val entryType = parameterTypes[0]
+
+            // `this`: first register of the method's own invoke-direct on
+            // ActivityDataSource (the parseNewFormatEntry call).
+            val thisRegister = (methodImpl.instructions.first {
+                it.opcode == Opcode.INVOKE_DIRECT &&
+                    ((it as ReferenceInstruction).reference as? MethodReference)
+                        ?.definingClass == definingClass
+            } as FiveRegisterInstruction).registerC
+
+            val callee = "${statusMethod.definingClass}->${statusMethod.name}" +
+                "(Ljava/lang/String;)${statusMethod.returnType}"
 
             val smali = """
-                iget-object v$targetRegister, v$entryRegister, Lcom/facebook/aura/status/repo/ActivityEntry;->status:Ljava/lang/String;
-                if-nez v$targetRegister, :use_success
-                const-string v$tempRegister, "pending"
-                invoke-virtual { v$targetRegister, v$tempRegister }, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-                move-result v$tempRegister
-                if-eqz v$tempRegister, :check_error
-                sget-object v$targetRegister, $statusClass->PENDING:$statusClass
-                goto :done
-                :check_error
-                const-string v$tempRegister, "error"
-                invoke-virtual { v$targetRegister, v$tempRegister }, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-                move-result v$tempRegister
-                if-eqz v$tempRegister, :use_success
-                sget-object v$targetRegister, $statusClass->ERROR:$statusClass
+                iget-object v$targetRegister, v$entryRegister, $entryType->status:Ljava/lang/String;
+                if-eqz v$targetRegister, :use_success
+                invoke-direct { v$thisRegister, v$targetRegister }, $callee
+                move-result-object v$targetRegister
                 goto :done
                 :use_success
-                sget-object v$targetRegister, $statusClass->SUCCESS:$statusClass
+                sget-object v$targetRegister, ${enumRef.definingClass}->${enumRef.name}:${enumRef.definingClass}
                 :done
             """.trimIndent()
 
