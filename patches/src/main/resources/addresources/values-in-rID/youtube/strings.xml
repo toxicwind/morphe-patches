@@ -515,7 +515,7 @@ Info: Mungkin tidak berfungsi pada siaran langsung"</string>
   <string name="morphe_queue_restore_summary">Antrean disimpan setelah memulai ulang aplikasi</string>
   <string name="morphe_swap_save_and_queue_actions_title">Tukar Tindakan Simpan dan Antrean</string>
   <string name="morphe_swap_save_and_queue_actions_summary">Ketuk untuk pilihan antrean, ketuk dan tahan untuk menyimpan ke Tonton Nanti</string>
-  <string name="morphe_queue_override_flyout_menu_title">Mengganti tombol feed hamparan antrean </string>
+  <string name="morphe_queue_override_flyout_menu_title">Gantikan tombol antrean feed flyout</string>
   <string name="morphe_queue_override_flyout_menu_summary">Membuka antrean Morphe daripada antrean YouTube</string>
   <string name="morphe_queue_add_flyout_menu_title">Tambahkan item menu antrean feed flyout</string>
   <string name="morphe_queue_add_flyout_menu_summary">Menambahkan item flyout tambahan. Aktifkan ini jika \"Tambahkan ke antrean\" tidak ditampilkan</string>
@@ -763,7 +763,7 @@ Untuk mengakses Setelan, aktifkan tombol Setelan melalui Umum → Bilah Alat →
   <string name="morphe_show_toolbar_settings_button_type_title">Tindakan tombol Setelan</string>
   <string name="morphe_show_toolbar_settings_button_type_summary">Saat diaktifkan, ketuk membuka setelan Morphe dan tahan membuka setelan YouTube, nonaktifkan untuk menukarnya</string>
   <!-- layout.hide.player.flyoutmenupanel.hidePlayerFlyoutMenuPatch -->
-  <string name="morphe_hide_player_flyout_title">Menu melayang</string>
+  <string name="morphe_hide_player_flyout_title">Menu flyout</string>
   <string name="morphe_hide_player_flyout_summary">Pilih komponen mana yang akan ditampilkan di menu flyout</string>
   <!-- 'Additional settings / More' should be translated using the same localized wording YouTube displays for the menu item. -->
   <string name="morphe_hide_player_flyout_additional_settings_title">Sembunyikan \'Setelan tambahan\' / menu Lainnya</string>

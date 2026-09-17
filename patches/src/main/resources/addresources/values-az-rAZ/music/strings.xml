@@ -309,9 +309,27 @@ Fon səsləndirmə zamanı analiz sinxronlaşdırılmasına əmin olmaq üçün 
   <string name="morphe_music_lyrics_enabled_title">Üçüncü tərəf mahnı sözlərin istifadə et</string>
   <string name="morphe_music_lyrics_enabled_summary">Üçüncü tərəf xidmətindən lirikanı göstərir, heç biri tapılmadıqda daxili sözlərə geri qayıdır</string>
   <string name="morphe_music_lyrics_section_service_title">Mahnı sözləri xidməti</string>
+  <string name="morphe_music_lyrics_section_overlay_title">Örtük</string>
+  <string name="morphe_music_lyrics_section_sync_title">Sinxronizasiya</string>
   <string name="morphe_music_lyrics_section_about_title">Haqqında</string>
   <!-- Shown under the preference; the actual priority list is rendered live by the custom preference. -->
+  <string name="morphe_music_lyrics_source_summary">Prioritet sırasını təyin etmək üçün ▲/▼, hər bir təminatçını aktivləşdirmək və ya qapatmaq üçün isə damaya toxun</string>
+  <string name="morphe_music_lyrics_source_all_disabled">Bütün təminatçılar qapadılıb — daxili mahnı sözləri və yerləşdirilən mahnı sözləri</string>
+  <string name="morphe_music_lyrics_source_reset_title">Təminatçı sırası sıfırlansın?</string>
+  <string name="morphe_music_lyrics_source_reset_message">Təminatçıları ilkin prioritet sırasına qaytar</string>
   <string name="morphe_music_token_dialog_get_token">Tokeni əldə et</string>
+  <string name="morphe_music_apple_music_token_title">Apple Music Media-user-token</string>
+  <string name="morphe_music_apple_music_token_dialog_instruction">"music.apple.com 'dan media-user-token kukisini yapışdır
+
+​Mərhələlər:
+1. music.apple.com 'da üzv istifadəçisi kimi daxil ol
+2. DevTools → Application → Cookies → music.apple.com bölməsini aç
+3. 'media-user-token' dəyərini köçür"</string>
+  <string name="morphe_music_apple_music_token_dialog_hint">media-user-token</string>
+  <string name="morphe_music_apple_music_token_toast_saved">Apple Music: media-user-token saxlanıldı</string>
+  <string name="morphe_music_apple_music_token_toast_cleared">Apple Music: media-user-token təmizləndi</string>
+  <string name="morphe_music_apple_music_token_toast_invalid">Apple Music: media-user-token yanlışdır — xahiş olunur, yoxla və təkrar cəhd et</string>
+  <string name="morphe_music_spotify_token_title">Spotify SpDc</string>
   <!-- 'LRCLIB', 'KuGou', 'NetEase', 'QQ', 'BiniLyrics', 'Unison' and 'AMLL' are service names and must be kept untranslated -->
   <string name="morphe_music_lyrics_tap_to_seek_title">Çevirmək üçün cizgiyə toxun</string>
   <string name="morphe_music_lyrics_tap_to_seek_summary">Cizgiyə toxunmaq mahnıdakı həmin ana sıçrayır</string>
