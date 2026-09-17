@@ -163,19 +163,48 @@ val fixActivityStatusMappingPatch = bytecodePatch(
             val callee = "${statusMethod.definingClass}->${statusMethod.name}" +
                 "(Ljava/lang/String;)${statusMethod.returnType}"
 
+            // The instruction following the sget is the join point for the
+            // non-null path. Capture it BEFORE modifying anything: it becomes
+            // the external :done label target.
+            val joinInstruction = getInstruction(sgetIndex + 1)
+
+            // Replace the sget IN PLACE (do NOT remove it): replaceInstruction
+            // swaps the instruction inside the same MethodLocation, so every
+            // label attached to the sget (e.g. the :goto_38 target of the
+            // note==null path) now points at the start of the new block.
+            // Removing the sget instead merges its labels into the following
+            // instruction, which let the note==null path skip the status
+            // resolution entirely (v10 Undefined -> VerifyError, 2026-09-17).
+            //
+            // Do NOT use plain addInstructions() with embedded labels:
+            // it inserts one-by-one without re-resolving branch targets,
+            // which shipped corrupt targets (if-eqz->0x9 mid-instruction)
+            // and a VerifyError crash on launch (2026-09-17).
+            replaceInstruction(
+                sgetIndex,
+                "iget-object v$targetRegister, v$entryRegister, " +
+                    "$entryType->status:Ljava/lang/String;",
+            )
+
+            // Insert the remainder after the replaced instruction. The null
+            // path falls into a FRESH sget (internal :use_sget label); the
+            // non-null path calls parseActivityStatus and jumps to :done.
+            // The original sget's slot is gone (replaced by the iget above),
+            // so the null path needs its own SUCCESS sget here.
             val smali = """
-                iget-object v$targetRegister, v$entryRegister, $entryType->status:Ljava/lang/String;
-                if-eqz v$targetRegister, :use_success
+                if-eqz v$targetRegister, :use_sget
                 invoke-direct { v$thisRegister, v$targetRegister }, $callee
                 move-result-object v$targetRegister
                 goto :done
-                :use_success
+                :use_sget
                 sget-object v$targetRegister, ${enumRef.definingClass}->${enumRef.name}:${enumRef.definingClass}
-                :done
             """.trimIndent()
 
-            removeInstructions(sgetIndex, 1)
-            addInstructions(sgetIndex, smali.toInstructions(this))
+            addInstructionsWithLabels(
+                sgetIndex + 1,
+                smali,
+                ExternalLabel("done", joinInstruction),
+            )
         }
     }
 }
