@@ -1,5 +1,7 @@
 {
   "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "bun-types": "^1.4.4",
     "@cleyrop-org/semantic-release-backmerge": "^6.2.0",
     "@MorpheApp/changelog": "git+https://github.com/MorpheApp/changelog.git#bundle",
     "@semantic-release/exec": "^7.1.0",
